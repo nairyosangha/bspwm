@@ -13,6 +13,10 @@ bool parse_bool(char *value, bool *b)
 	} else if (streq("false", value) || streq("off", value)) {
 		*b = false;
 		return true;
+	} else if (streq("toggle", value)) {
+		bool tmp = *b;
+		*b = (tmp) ? false : true;
+		return true;
 	}
 	return false;
 }

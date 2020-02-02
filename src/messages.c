@@ -1656,12 +1656,8 @@ void set_setting(coordinates_t loc, char *name, char *value, FILE *rsp)
 			return;
 		}
 	} else if (streq("focus_follows_pointer", name)) {
-		bool b;
+		bool b = focus_follows_pointer;
 		if (parse_bool(value, &b)) {
-			if (b == focus_follows_pointer) {
-				fail(rsp, "");
-				return;
-			}
 			focus_follows_pointer = b;
 			for (monitor_t *m = mon_head; m != NULL; m = m->next) {
 				if (focus_follows_pointer) {
