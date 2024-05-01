@@ -36,6 +36,13 @@
 #include "window.h"
 #include "pointer.h"
 
+uint16_t num_lock;
+uint16_t caps_lock;
+uint16_t scroll_lock;
+
+bool grabbing;
+node_t *grabbed_node;
+
 void pointer_init(void)
 {
 	num_lock = modfield_from_keysym(XK_Num_Lock);
@@ -281,8 +288,9 @@ void track_pointer(coordinates_t loc, pointer_action_t pac, xcb_point_t pos)
 			int16_t dy = e->root_y - last_motion_y;
 			if (pac == ACTION_MOVE) {
 				move_client(&loc, dx, dy);
-			} else {
-				if (honor_size_hints) {
+			} else if (n) {
+				client_t *c = n->client;
+				if (c && SHOULD_HONOR_SIZE_HINTS(c->honor_size_hints, c->state)) {
 					resize_client(&loc, rh, e->root_x, e->root_y, false);
 				} else {
 					resize_client(&loc, rh, dx, dy, true);

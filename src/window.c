@@ -81,7 +81,9 @@ bool manage_window(xcb_window_t win, rule_consequence_t *csq, int fd)
 
 	if (!ignore_ewmh_struts && ewmh_handle_struts(win)) {
 		for (monitor_t *m = mon_head; m != NULL; m = m->next) {
-			arrange(m, m->desk);
+			for (desktop_t *d = m->desk_head; d != NULL; d = d->next) {
+				arrange(m, d);
+			}
 		}
 	}
 
@@ -124,11 +126,8 @@ bool manage_window(xcb_window_t win, rule_consequence_t *csq, int fd)
 		f = mon->desk->focus;
 	}
 
-	if (csq->split_dir[0] != '\0' && f != NULL) {
-		direction_t dir;
-		if (parse_direction(csq->split_dir, &dir)) {
-			presel_dir(m, d, f, dir);
-		}
+	if (csq->split_dir != NULL && f != NULL) {
+		presel_dir(m, d, f, *csq->split_dir);
 	}
 
 	if (csq->split_ratio != 0 && f != NULL) {
@@ -184,6 +183,10 @@ bool manage_window(xcb_window_t win, rule_consequence_t *csq, int fd)
 
 	if (csq->state != NULL) {
 		set_state(m, d, n, *(csq->state));
+	}
+
+	if (csq->honor_size_hints != HONOR_SIZE_HINTS_DEFAULT) {
+		c->honor_size_hints = csq->honor_size_hints;
 	}
 
 	set_hidden(m, d, n, csq->hidden);
@@ -575,6 +578,7 @@ bool resize_client(coordinates_t *loc, resize_handle_t rh, int dx, int dy, bool 
 			sr = MAX(0, sr);
 			sr = MIN(1, sr);
 			vertical_fence->split_ratio = sr;
+			adjust_ratios(vertical_fence, vertical_fence->rectangle);
 		}
 		if (horizontal_fence != NULL) {
 			double sr = 0.0;
@@ -586,9 +590,8 @@ bool resize_client(coordinates_t *loc, resize_handle_t rh, int dx, int dy, bool 
 			sr = MAX(0, sr);
 			sr = MIN(1, sr);
 			horizontal_fence->split_ratio = sr;
+			adjust_ratios(horizontal_fence, horizontal_fence->rectangle);
 		}
-		node_t *target_fence = horizontal_fence != NULL ? horizontal_fence : vertical_fence;
-		adjust_ratios(target_fence, target_fence->rectangle);
 		arrange(loc->monitor, loc->desktop);
 	} else {
 		int w = width, h = height;
@@ -633,16 +636,12 @@ bool resize_client(coordinates_t *loc, resize_handle_t rh, int dx, int dy, bool 
 /* taken from awesomeWM */
 void apply_size_hints(client_t *c, uint16_t *width, uint16_t *height)
 {
-	if (!honor_size_hints) {
+	if (!SHOULD_HONOR_SIZE_HINTS(c->honor_size_hints, c->state)) {
 		return;
 	}
 
 	int32_t minw = 0, minh = 0;
 	int32_t basew = 0, baseh = 0, real_basew = 0, real_baseh = 0;
-
-	if (c->state == STATE_FULLSCREEN) {
-		return;
-	}
 
 	if (c->size_hints.flags & XCB_ICCCM_SIZE_HINT_BASE_SIZE) {
 		basew = c->size_hints.base_width;
@@ -733,18 +732,32 @@ void query_pointer(xcb_window_t *win, xcb_point_t *pt)
 
 	if (qpr != NULL) {
 		if (win != NULL) {
-			*win = qpr->child;
-			xcb_point_t pt = {qpr->root_x, qpr->root_y};
-			for (stacking_list_t *s = stack_tail; s != NULL; s = s->prev) {
-				if (!s->node->client->shown || s->node->hidden) {
-					continue;
-				}
-				xcb_rectangle_t rect = get_rectangle(NULL, NULL, s->node);
-				if (is_inside(pt, rect)) {
-					if (s->node->id == qpr->child || is_presel_window(qpr->child)) {
-						*win = s->node->id;
+			if (qpr->child == XCB_NONE) {
+				xcb_point_t mpt = (xcb_point_t) {qpr->root_x, qpr->root_y};
+				monitor_t *m = monitor_from_point(mpt);
+				if (m != NULL) {
+					desktop_t *d = m->desk;
+					for (node_t *n = first_extrema(d->root); n != NULL; n = next_leaf(n, d->root)) {
+						if (n->client == NULL && is_inside(mpt, get_rectangle(m, d, n))) {
+							*win = n->id;
+							break;
+						}
 					}
-					break;
+				}
+			} else {
+				*win = qpr->child;
+				xcb_point_t pt = {qpr->root_x, qpr->root_y};
+				for (stacking_list_t *s = stack_tail; s != NULL; s = s->prev) {
+					if (!s->node->client->shown || s->node->hidden) {
+						continue;
+					}
+					xcb_rectangle_t rect = get_rectangle(NULL, NULL, s->node);
+					if (is_inside(pt, rect)) {
+						if (s->node->id == qpr->child || is_presel_window(qpr->child)) {
+							*win = s->node->id;
+						}
+						break;
+					}
 				}
 			}
 		}

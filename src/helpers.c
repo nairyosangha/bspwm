@@ -152,10 +152,9 @@ char *mktempfifo(const char *template)
 
 int asprintf(char **buf, const char *fmt, ...)
 {
-	int size = 0;
 	va_list args;
 	va_start(args, fmt);
-	size = vasprintf(buf, fmt, args);
+	int size = vasprintf(buf, fmt, args);
 	va_end(args);
 	return size;
 }
@@ -181,19 +180,6 @@ int vasprintf(char **buf, const char *fmt, va_list args)
 	return size;
 }
 
-/* Adapted from i3wm */
-uint32_t get_color_pixel(const char *color)
-{
-	unsigned int red, green, blue;
-	if (sscanf(color + 1, "%02x%02x%02x", &red, &green, &blue) == 3) {
-		/* We set the first 8 bits high to have 100% opacity in case of a 32 bit
-		 * color depth visual. */
-		return (0xFF << 24) | (red << 16 | green << 8 | blue);
-	} else {
-		return screen->black_pixel;
-	}
-}
-
 bool is_hex_color(const char *color)
 {
 	if (color[0] != '#' || strlen(color) != 7) {
@@ -205,4 +191,40 @@ bool is_hex_color(const char *color)
 		}
 	}
 	return true;
+}
+
+char *tokenize_with_escape(struct tokenize_state *state, const char *s, char sep)
+{
+	if (s != NULL) {
+		// first call
+		state->in_escape = false;
+		state->pos = s;
+		state->len = strlen(s) + 1;
+	}
+
+	char *outp = calloc(state->len, 1);
+	char *ret = outp;
+	if (!outp) return NULL;
+
+	char cur;
+	while (*state->pos) {
+		--state->len;
+		cur = *state->pos++;
+
+		if (state->in_escape) {
+			*outp++ = cur;
+			state->in_escape = false;
+			continue;
+		}
+
+		if (cur == '\\') {
+			state->in_escape = !state->in_escape;
+		} else if (cur == sep) {
+			return ret;
+		} else {
+			*outp++ = cur;
+		}
+	}
+
+	return ret;
 }

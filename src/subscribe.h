@@ -58,7 +58,7 @@ typedef enum {
 	SBSC_MASK_POINTER_ACTION = 1 << 27,
 	SBSC_MASK_MONITOR = (1 << 7) - (1 << 1),
 	SBSC_MASK_DESKTOP = (1 << 15) - (1 << 7),
-	SBSC_MASK_NODE = (1 << 28) - (1 << 15),
+	SBSC_MASK_NODE = (1 << 27) - (1 << 15),
 	SBSC_MASK_ALL = (1 << 28) - 1
 } subscriber_mask_t;
 
@@ -67,5 +67,9 @@ void remove_subscriber(subscriber_list_t *sb);
 void add_subscriber(subscriber_list_t *sb);
 int print_report(FILE *stream);
 void put_status(subscriber_mask_t mask, ...);
+
+/* Remove any subscriber for which the stream has been closed and is no longer
+ * writable. */
+void prune_dead_subscribers(void);
 
 #endif

@@ -35,6 +35,8 @@
 #include "rule.h"
 #include "events.h"
 
+uint8_t randr_base;
+
 void handle_event(xcb_generic_event_t *evt)
 {
 	uint8_t resp_type = XCB_EVENT_RESPONSE_TYPE(evt);
@@ -168,6 +170,9 @@ void configure_request(xcb_generic_event_t *evt)
 		c->floating_rectangle.width = width;
 		c->floating_rectangle.height = height;
 		xcb_rectangle_t r = c->floating_rectangle;
+
+		r.x -= c->border_width;
+		r.y -= c->border_width;
 
 		window_move_resize(e->window, r.x, r.y, r.width, r.height);
 
@@ -348,8 +353,16 @@ void focus_in(xcb_generic_event_t *evt)
 		return;
 	}
 
-	if (mon->desk->focus != NULL && e->event == mon->desk->focus->id) {
-		return;
+	if (mon->desk->focus != NULL) {
+		if (e->event == mon->desk->focus->id) {
+			return;
+		}
+		if (e->event == root) {
+			/* Some clients expect the window manager to refocus the
+			   focused window in this case */
+			focus_node(mon, mon->desk, mon->desk->focus);
+			return;
+		}
 	}
 
 	coordinates_t loc;
